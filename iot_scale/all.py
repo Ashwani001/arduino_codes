@@ -26,8 +26,11 @@ hx.tare()
 mylcd = I2C_LCD_driver.lcd()
 
 # Set up some global variables
-items = {}
 val=0
+import ast
+GPIO.setup(17,GPIO.OUT)
+GPIO.setup(27,GPIO.OUT)
+
 
 # Set up functions for printing to LCD
 def updateLCD(LCDLine1,LCDLine2=""):
@@ -59,19 +62,19 @@ def setTare():
     """Tares the scale while printing to lcd"""
     showValue=False
     delay(0.5)
-    updateLCD("TARE ...")
-    delay(3)
+    updateLCD("TARING...")
     hx.tare()
+    delay(3)
     updateLCD("Done ...")
     showValue=True
     delay(0.5)
-    return 'Taring done'
+    return 'Done...'
 
 
 @app.route('/getVal')
 def getVal():
     global val
-    return str(val)
+    return str(val)+"g"
 
 
 def cleanAndExit():
@@ -90,17 +93,7 @@ def readValue(times=10, update=True):
         updateLCD(val)
     hx.power_down()
     hx.power_up()
-    delay(0.5)
-
-
-def addItem(name,weight):
-    global items
-    items["name"]=weight
-
-
-def deleteItem(name):
-    global items
-    items.pop(name, None)
+    return val
 
 
 def delay(secs):
@@ -108,34 +101,64 @@ def delay(secs):
     time.sleep(secs)
 
 
-def guessNoItems(weight):
-    global items
-    for key, val in items:
-        if weight%val==0:
-            return key, weight/val
-    return "Unknown","Unknown"
+def guessNoItems(Tw,w):
+    print Tw,float(Tw),int(Tw)
+    print w,float(w),int(w)
+    return float(Tw)/float(w)
 
 
-def countItems():
+@app.route('/count=<obj>')
+def countItems(obj):
     global showValue
     showValue=False
-    delay(0.5)
-    updateLCD("Counting items")
-    delay(3)
+    obj = ast.literal_eval(obj)
+    name=obj.get("item")
+    weight=obj.get("weight")
+    weight=weight[:-1]
     updateLCD("Weighing..     ")
     totalWeight=readValue(update=False)
     lprint(totalWeight,row=2, x=0)
-    delay(3)
     lprint("Counting    ",row=1, x=0)
     lprint("            ",row=2, x=0)
-    item, noOfItems = guessNoItems(totalWeight)
-    delay(3)
+    noOfItems = guessNoItems(totalWeight,weight)
     lprint("Results    ",row=1, x=0)
-    lprint("Item: "+item+",No.: "+str(noOfItems))
-    delay(3)
+    lprint(str(noOfItems)+" "+name+"(s)")
     showValue=True
-    delay(0.5)
-    return
+    if int(noOfItems)<3:
+        light("red")
+    else:
+        light("green")
+    return str(noOfItems)
+
+@app.route('/red')
+def lightRed():
+    print "red"
+    GPIO.output(17,GPIO.HIGH)
+    time.sleep(5)
+    GPIO.output(17,GPIO.LOW)
+    return "a"
+
+@app.route('/green')
+def lightGreen():
+    print "green"
+    GPIO.output(27,GPIO.HIGH)
+    time.sleep(5)
+    GPIO.output(27,GPIO.LOW)
+    return "b"
+
+
+def light(col):
+    print "in light"
+    if col=="red":
+        try:
+            thread.start_new_thread(lightRed,())
+        except:
+            print "Error: unable to start thread:",sys.exc_info()[0]
+    elif col=="green":
+        try:
+            thread.start_new_thread(lightGreen,())
+        except:
+            print "Error: unable to start thread:",sys.exc_info()[0]
 
 
 def handle_t(pin):
@@ -147,19 +170,11 @@ def handle_t(pin):
         pass
 
 
-def handle_w(pin):
-    try:
-        global showValue
-        showValue=False
-        countItems()
-    except RuntimeError:
-        pass
-
 updateLCD("Welcome!")
 
 GPIO.add_event_detect(pin_t, GPIO.RISING, callback=handle_t, bouncetime=200)
-delay(5)
-GPIO.add_event_detect(pin_w, GPIO.RISING, callback=handle_w, bouncetime=200)
+delay(3)
+
 
 def printVal():
     while True:
@@ -175,8 +190,12 @@ except:
     print "Error: unable to start thread:",sys.exc_info()[0]
 
 
+
 import signal
+
+
 import sys
+
 def signal_handler(signal, frame):
     print('You pressed Ctrl+C!')
     cleanAndExit()
@@ -188,8 +207,13 @@ def signal_handler(signal, frame):
     updateLCD("           ")
     sys.exit(0)
 
+
+
 signal.signal(signal.SIGINT, signal_handler)
-signal.pause()
+
+# check purpose of this
+#signal.pause()
+
 
 
 app.run(host='0.0.0.0', port=4000)
