@@ -31,15 +31,21 @@ import ast
 GPIO.setup(17,GPIO.OUT)
 GPIO.setup(27,GPIO.OUT)
 
+free = True
+
 
 # Set up functions for printing to LCD
 def updateLCD(LCDLine1,LCDLine2=""):
-    pass
-    #mylcd.lcd_clear()
-    #mylcd.lcd_clear()
-    """Prints l1 one top row and l2 on second row of LCD"""
-    #mylcd.lcd_display_string(str(LCDLine1), 1)
-    #mylcd.lcd_display_string(str(LCDLine2), 2)
+    global free
+    if free:
+        free = False
+        mylcd.lcd_clear()
+        """Prints l1 one top row and l2 on second row of LCD"""
+        mylcd.lcd_display_string(str(LCDLine1), 1)
+        mylcd.lcd_display_string(str(LCDLine2), 2)
+        free = True
+    else:
+        pass
 
 
 # Set up for buttons
@@ -70,8 +76,12 @@ def setTare():
 
 @app.route('/getVal')
 def getVal():
-    global val
-    return str(val)+"g"
+    global showValue
+    if showValue:
+        global val
+        return str(val)+"g"
+    else:
+        pass
 
 
 def cleanAndExit():
@@ -103,9 +113,17 @@ def guessNoItems(Tw,w):
     print Tw,float(Tw),int(Tw)
     print w,float(w),int(w)
     print int(Tw)%int(w)
-    #if (int(Tw)%int(w))>0.9:
-    #    return int(int(Tw)/int(w))
+    remainder = ((int(Tw)%int(w))/int(w))
+    if remainder < 0.15:
+        return int(int(Tw)/int(w))
+    elif remainder > 0.85:
+        return int(int(Tw)/int(w)) + 1
     return float(Tw)/float(w)
+
+
+    37=18
+39=1
+75=18
 
 
 @app.route('/count=<obj>')
