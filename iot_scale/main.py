@@ -20,7 +20,7 @@ hx = HX711(5, 6)
 hx.set_reading_format("LSB", "MSB")
 hx.set_reference_unit(427)
 hx.reset()
-hx.tare()
+hx.tare(times=100)
 
 # Set up for LCD
 mylcd = I2C_LCD_driver.lcd()
@@ -34,15 +34,12 @@ GPIO.setup(27,GPIO.OUT)
 
 # Set up functions for printing to LCD
 def updateLCD(LCDLine1,LCDLine2=""):
-    mylcd.lcd_clear()
+    pass
+    #mylcd.lcd_clear()
+    #mylcd.lcd_clear()
     """Prints l1 one top row and l2 on second row of LCD"""
-    mylcd.lcd_display_string(str(LCDLine1), 1)
-    mylcd.lcd_display_string(str(LCDLine2), 2)
-
-
-def lprint(toPrint,row=2,x=3):
-    """Prints value at given row and column. Default is row 2, column 4 (starts at 0)"""
-    mylcd.lcd_display_string(str(toPrint), row, x)
+    #mylcd.lcd_display_string(str(LCDLine1), 1)
+    #mylcd.lcd_display_string(str(LCDLine2), 2)
 
 
 # Set up for buttons
@@ -61,10 +58,10 @@ def setTare():
     global showValue
     """Tares the scale while printing to lcd"""
     showValue=False
-    delay(0.5)
+    delay(0.2)
     updateLCD("TARING...")
-    hx.tare()
-    delay(3)
+    hx.tare(times=50)
+    delay(0.3)
     updateLCD("Done ...")
     showValue=True
     delay(0.5)
@@ -86,10 +83,11 @@ def cleanAndExit():
     #sys.exit()
 
 
-def readValue(times=10, update=True):
+def readValue(times=20, update=True):
     global val
+    global showValue
     val = hx.get_weight(times)
-    if update:
+    if update and showValue:
         updateLCD(val)
     hx.power_down()
     hx.power_up()
@@ -104,6 +102,9 @@ def delay(secs):
 def guessNoItems(Tw,w):
     print Tw,float(Tw),int(Tw)
     print w,float(w),int(w)
+    print int(Tw)%int(w)
+    #if (int(Tw)%int(w))>0.9:
+    #    return int(int(Tw)/int(w))
     return float(Tw)/float(w)
 
 
@@ -117,33 +118,34 @@ def countItems(obj):
     weight=weight[:-1]
     updateLCD("Weighing..     ")
     totalWeight=readValue(update=False)
-    lprint(totalWeight,row=2, x=0)
-    lprint("Counting    ",row=1, x=0)
-    lprint("            ",row=2, x=0)
+    updateLCD("Weighing...     ",LCDLine2=str(totalWeight))
+    updateLCD("Counting...     ")
     noOfItems = guessNoItems(totalWeight,weight)
-    lprint("Results    ",row=1, x=0)
-    lprint(str(noOfItems)+" "+name+"(s)")
-    showValue=True
-    if int(noOfItems)<3:
-        light("red")
+    if float(noOfItems)%1 != 0:
+        updateLCD("Results:",LCDLine2="Unknwon")
+        showValue=True
+        return("Unknown")
     else:
-        light("green")
-    return str(noOfItems)
+        if int(noOfItems)<3:
+            light("red")
+        else:
+            light("green")
+        updateLCD("Results:",LCDLine2=str(noOfItems)+" "+name+"(s)")
+        showValue=True
+        return str(noOfItems)
 
 @app.route('/red')
 def lightRed():
-    print "red"
-    GPIO.output(17,GPIO.HIGH)
-    time.sleep(5)
     GPIO.output(17,GPIO.LOW)
+    GPIO.output(27,GPIO.HIGH)
+    #time.sleep(5)
     return "a"
 
 @app.route('/green')
 def lightGreen():
-    print "green"
-    GPIO.output(27,GPIO.HIGH)
-    time.sleep(5)
     GPIO.output(27,GPIO.LOW)
+    GPIO.output(17,GPIO.HIGH)
+    #time.sleep(5)
     return "b"
 
 
@@ -171,6 +173,7 @@ def handle_t(pin):
 
 
 updateLCD("Welcome!")
+hx.tare(times=100)
 
 GPIO.add_event_detect(pin_t, GPIO.RISING, callback=handle_t, bouncetime=200)
 delay(3)
