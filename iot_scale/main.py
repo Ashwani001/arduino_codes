@@ -27,25 +27,35 @@ mylcd = I2C_LCD_driver.lcd()
 
 # Set up some global variables
 val=0
+
+val_lock = threading.Lock()
+def setVal(num):
+    global val
+    if type(num) == int:
+        val_lock.acquire()
+        try:
+            val = num
+        finally:
+            val_lock.release()
+
+
 import ast
 GPIO.setup(17,GPIO.OUT)
 GPIO.setup(27,GPIO.OUT)
 
-free = True
 
-
+lcd_lock = threading.Lock()
 # Set up functions for printing to LCD
 def updateLCD(LCDLine1,LCDLine2=""):
-    global free
-    if free:
-        free = False
+    lcd_lock.acquire()
+    try:
         mylcd.lcd_clear()
         """Prints l1 one top row and l2 on second row of LCD"""
         mylcd.lcd_display_string(str(LCDLine1), 1)
         mylcd.lcd_display_string(str(LCDLine2), 2)
-        free = True
-    else:
-        pass
+    finally:
+        lcd_lock.release()
+
 
 
 # Set up for buttons
@@ -93,15 +103,20 @@ def cleanAndExit():
     #sys.exit()
 
 
+hx_lock = threading.Lock()
 def readValue(times=20, update=True):
     global val
     global showValue
-    val = hx.get_weight(times)
-    if update and showValue:
-        updateLCD(val)
-    hx.power_down()
-    hx.power_up()
-    return val
+    hx_lock.acquire()
+    try:
+        setVal(hx.get_weight(times))
+        if update and showValue:
+            updateLCD(val)
+        hx.power_down()
+        hx.power_up()
+        return val
+    finally:
+        hx_lock.release()       
 
 
 def delay(secs):
@@ -114,16 +129,11 @@ def guessNoItems(Tw,w):
     print w,float(w),int(w)
     print int(Tw)%int(w)
     remainder = ((int(Tw)%int(w))/int(w))
-    if remainder < 0.15:
+    if remainder < 0.1:
         return int(int(Tw)/int(w))
-    elif remainder > 0.85:
+    elif remainder > 0.9:
         return int(int(Tw)/int(w)) + 1
     return float(Tw)/float(w)
-
-
-    37=18
-39=1
-75=18
 
 
 @app.route('/count=<obj>')
@@ -211,10 +221,7 @@ except:
     print "Error: unable to start thread:",sys.exc_info()[0]
 
 
-
 import signal
-
-
 import sys
 
 def signal_handler(signal, frame):
